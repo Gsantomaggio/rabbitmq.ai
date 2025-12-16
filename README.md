@@ -1,1 +1,1 @@
-# rabbitmq training files
+# rabbitmq.ai

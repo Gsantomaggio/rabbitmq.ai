@@ -1,107 +1,110 @@
+import streamlit as st
 import bs4
 from langchain_community.document_loaders import DirectoryLoader, PyPDFDirectoryLoader, TextLoader
 from langchain_ollama import OllamaLLM
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_chroma import Chroma
-from langchain_community.llms import Ollama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
+# Initialize session state for chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-loader = DirectoryLoader(
-    path='./data',
-    glob="./*.md",
-    loader_cls=TextLoader
-)
-docs = loader.load()
+if "rag_chain" not in st.session_state:
+    # Load documents
+    loader = DirectoryLoader(
+        path='./data',
+        glob="./*.md",
+        loader_cls=TextLoader
+    )
+    docs = loader.load()
 
-# Check if documents were loaded
-if not docs:
-    print("No documents found in the 'data' folder. Please add some .md files.")
-    exit()
+    if not docs:
+        st.error("No documents found in the 'data' folder. Please add some .md files.")
+        st.stop()
 
-print(f"Loaded {len(docs)} documents.")
+    # Load PDF documents
+    loader_pdf = PyPDFDirectoryLoader(
+        path='./data',
+        glob="./*.pdf",
+    )
+    pdf_docs = loader_pdf.load()
 
-# # 1. Load Data
-# # We will load a blog post as our source knowledge
-# web_loader = WebBaseLoader(
-#     web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
-#     bs_kwargs=dict(
-#         parse_only=bs4.SoupStrainer(
-#             class_=("post-content", "post-title", "post-header")
-#         )
-#     ),
-# )
+    loader_txt = DirectoryLoader(
+        path='./data',
+        glob="./*.txt",
+        loader_cls=TextLoader
+    )
+    web_docs = loader_txt.load()
 
-print("Loading PDF documents...")
-loader_pdf = PyPDFDirectoryLoader(
-    path='./data',
-    glob="./*.pdf",
-)
-pdf_docs = loader_pdf.load()
-print(f"Loaded {len(pdf_docs)} PDF documents.")
+    # Split documents
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=200)
+    splits = text_splitter.split_documents(docs)
+    splits_web = text_splitter.split_documents(pdf_docs)
+    splits.extend(splits_web)
+    splits_txt = text_splitter.split_documents(web_docs)
+    print("Number of document splits:", len(splits))
+    print("Creating vector store...")
+    # Create vector store
+    vectorstore = Chroma.from_documents(
+        documents=splits,
+        embedding=OllamaEmbeddings(model="mxbai-embed-large")
+    )
+    print("Vector store created.")
 
-
-
-# 2. Split Data
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=200)
-splits = text_splitter.split_documents(docs)
-splits_web = text_splitter.split_documents(pdf_docs)
-splits.extend(splits_web)
-print(f"Loaded {len(splits)} documents.")
-
-
-# 2. Split Data
-# Large text needs to be split into smaller chunks for the vector DB
-
-# 3. Create Vector Store (ChromaDB)
-# We use 'nomic-embed-text' to convert text chunks into numbers (vectors)
-print("Creating vector store...")
-vectorstore = Chroma.from_documents(
-    documents=splits,
-    embedding=OllamaEmbeddings(model="mxbai-embed-large")
-)
-print(f"Loaded vectors.")
-
-# 4. Create the Retriever
-retriever = vectorstore.as_retriever()
-
-# 5. Define the LLM (Llama 3 via Ollama)
-llm = OllamaLLM(model="llama3")
-
-# 6. Define the Prompt Template
-template = """
+    # Create retriever and LLM
+    print("Creating RAG chain...")
+    retriever = vectorstore.as_retriever()
+    llm = OllamaLLM(model="llama3")
+    print("RAG Chain created.")
+    # Define prompt template
+    template = """
 Answer the question based only on the following context:
 {context}
 
 Question: {question}
 """
-prompt = ChatPromptTemplate.from_template(template)
+    prompt = ChatPromptTemplate.from_template(template)
 
-# 7. Build the Chain
-# This chain does the following:
-# 1. Takes the user question.
-# 2. Retrieves relevant context from ChromaDB.
-# 3. Formats the context.
-# 4. Passes context + question to Llama 3.
-def format_docs(docs):
-    return "\n\n".join(doc.page_content for doc in docs)
 
-rag_chain = (
-    {"context": retriever | format_docs, "question": RunnablePassthrough()}
-    | prompt
-    | llm
-    | StrOutputParser()
-)
+    # Build RAG chain
+    def format_docs(docs):
+        return "\n\n".join(doc.page_content for doc in docs)
 
-while True:
-# 8. Run the Chain
 
-    question = input("Question: ")
-    print(f"Question: {question}\n")
-    print("Generating answer...\n")
+    rag_chain = (
+            {"context": retriever | format_docs, "question": RunnablePassthrough()}
+            | prompt
+            | llm
+            | StrOutputParser()
+    )
 
-    response = rag_chain.invoke(question)
-    print(response)
+    st.session_state.rag_chain = rag_chain
+
+# Streamlit UI
+st.set_page_config(page_title="RAG Chat", layout="wide")
+st.title("📚 RAG Chat Application")
+
+# Display chat history
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Chat input
+if prompt_input := st.chat_input("Ask a question about your documents..."):
+    # Add user message to history
+    st.session_state.messages.append({"role": "user", "content": prompt_input})
+    with st.chat_message("user"):
+        st.markdown(prompt_input)
+
+    # Generate response
+    with st.chat_message("assistant"):
+        with st.spinner("Generating answer..."):
+            response = st.session_state.rag_chain.invoke(prompt_input)
+            st.markdown(response)
+
+    # Add assistant message to history
+    st.session_state.messages.append({"role": "assistant", "content": response})

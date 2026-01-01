@@ -1,0 +1,10 @@
+rabbitmq supports the following protocols:
+- AMQP 0-9-1
+- AMQP 1.0 ( Native support started in RabbitMQ 4.0.0. Prior to that, it required a plugin.)
+- MQTT ( via the MQTT plugin)
+- STOMP ( via the STOMP plugin)
+- HTTP (for management plugin)
+- STOMP over WebSockets
+- MQTT over WebSockets
+- AMQP over WebSockets
+- RabbitMQ Stream Protocol

@@ -1,5 +1,4 @@
 import streamlit as st
-import bs4
 from langchain_community.document_loaders import DirectoryLoader, PyPDFDirectoryLoader, TextLoader
 from langchain_ollama import OllamaLLM
 from langchain_text_splitters import RecursiveCharacterTextSplitter

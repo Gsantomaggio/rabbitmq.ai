@@ -1,0 +1,11 @@
+*.test
+*.out
+*.exe
+vendor/
+coverage.out
+coverage.html
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.tmp

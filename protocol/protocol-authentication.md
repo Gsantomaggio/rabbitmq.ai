@@ -12,11 +12,11 @@ The protocol defines this order:
 
 | Step | Frames (conceptual) | Direction |
 |------|---------------------|-----------|
-| 1 | **Peer properties** exchange | Client → Server, then Server → Client |
-| 2 | **SASL handshake** | Client → Server, then Server → Client |
-| 3 | **SASL authenticate** (may repeat) | Client → Server, then Server → Client |
-| 4 | **Tune** | Server → Client, then Client → Server |
-| 5 | **Open** | Client → Server, then Server → Client |
+| 1 | **Peer properties (see:PeerPropertiesRequest and PeerPropertiesResponse in in protocol-commands.md)** exchange | Client → Server, then Server → Client |
+| 2 | **SaslHandshake (see: SaslHandshakeRequest and SaslHandshakeResponse in protocol-commands.md)** | Client → Server, then Server → Client |
+| 3 | **SaslAuthenticate (see SaslAuthenticateRequest and Response in in protocol-commands.md)** (| Client → Server, then Server → Client |
+| 4 | **Tune (See TuneRequest and TuneResponse in protocol-commands.md)** | Server → Client, then Client → Server |
+| 5 | **Open (See OpenRequest and OpenResponse in protocol-commands.md)** | Client → Server, then Server → Client |
 
 Equivalent to the upstream diagram:
 
@@ -25,15 +25,19 @@ Client                      Server
   | Peer Properties Exchange  |
   |-------------------------->|
   |<--------------------------|
+  |                           | 
   |      SASL Handshake       |
   |-------------------------->|
   |<--------------------------|
+  |                           |
   |     SASL Authenticate     |
   |-------------------------->|
   |<--------------------------|
+  |                           |
   |           Tune            |
   |<--------------------------|
   |-------------------------->|
+  |                           |
   |           Open            |
   |-------------------------->|
   |<--------------------------|

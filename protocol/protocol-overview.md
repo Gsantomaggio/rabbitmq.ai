@@ -1,6 +1,12 @@
 # RabbitMQ Streams Protocol — Overview
 
-This document summarizes the [RabbitMQ Streams protocol reference](https://github.com/rabbitmq/rabbitmq-server/blob/v4.2.x/deps/rabbitmq_stream/docs/PROTOCOL.adoc) (upstream `PROTOCOL.adoc`, v4.2.x). The [RabbitMQ Stream Java client](https://github.com/rabbitmq/rabbitmq-stream-java-client) is the reference implementation.
+This document summarizes the [RabbitMQ Streams protocol reference](https://github.com/rabbitmq/rabbitmq-server/blob/v4.2.x/deps/rabbitmq_stream/docs/PROTOCOL.adoc) (upstream `PROTOCOL.adoc`, v4.2.x). 
+
+## Tcp Client
+
+Client needs a TCP client to be connected to the port 5552 and 5551 fot TLS port.
+each command has its own struct. 
+
 
 ## Wire types
 

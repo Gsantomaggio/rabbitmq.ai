@@ -1,6 +1,62 @@
-# RabbitMQ client libraries should follow these best practices
+# RabbitMQ Stream Protocol TCP Client Specification
 
-- Each command should have its own struct, and the library should provide a way to serialize and deserialize these structs to and from the wire format defined in the protocol. This allows for clear and maintainable code, as well as easier debugging and testing.
-- Each struct should have its own test cases to ensure that the serialization and deserialization logic is correct. This can help catch bugs early and ensure that the library is working as expected.
-- The library should avoid duplication code for the commands, use the same tcp call for the sync calls
-- The library has to implment integration tests supposing the server is up and running. Use the defaul values for host:localhost:5552, user: "guest": password:"guest" virtualhost:"/"
+## Core Requirements
+
+### Command Architecture
+- Each command must have its own struct with serialization/deserialization capabilities
+- Avoid code duplication - use shared TCP call mechanism for synchronous operations
+- Each struct requires comprehensive unit tests for serialization/deserialization logic
+
+### Integration Testing
+- Implement integration tests assuming server is running
+- Default connection: host=localhost:5552, user="guest", password="guest", virtualhost="/"
+- Reference implementation: https://github.com/rabbitmq/rabbitmq-stream-java-client
+
+### Build System
+- Provide Makefile with commands: format, build, run tests
+- Ensure consistent development workflow across environments
+
+### Connection Management
+- Implement callback/event system for unexpected TCP socket closures
+- No events should fire for normal client shutdown
+- Handle connection state monitoring and recovery
+
+### Interface Design
+Example for .NET (adapt for target language):
+```csharp
+interface IStreamClient {
+    Task<ConnectionResult> ConnectAsync(ConnectionConfig config);
+    Task<StreamResult> DeclareStreamAsync(StreamSpec spec);
+    Task<DeleteResult> DeleteStreamAsync(string streamName);
+    event EventHandler<ConnectionStateChanged> ConnectionStateChanged;
+}
+```
+
+### Error Handling
+- Define standard error types for network failures, protocol violations, authentication errors
+- Implement graceful degradation and retry mechanisms
+- Provide clear error messages and debugging information
+
+### Performance Requirements
+- Support async/await patterns where applicable
+- Implement backpressure handling for high-throughput scenarios
+- Include memory management best practices
+- Add performance benchmarks to test suite
+
+### Security & Configuration
+- SSL/TLS support with certificate validation
+- Configurable timeouts and buffer sizes
+- Logging integration points for debugging and monitoring
+- Connection pooling capabilities for multi-stream applications
+
+### Testing Strategy
+1. Unit tests: Command serialization/deserialization correctness
+2. Integration tests: Full protocol compliance against live server
+3. Load tests: Performance validation under stress
+4. Chaos tests: Network partition and failure scenarios
+
+
+### Code Organization
+- each client needs to be in a subdirectoy, example:
+    - Go: go_rabbitmq_client_stream
+    - .NET: net_rabbitmq_client_stream

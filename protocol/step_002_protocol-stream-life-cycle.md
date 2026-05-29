@@ -1,4 +1,4 @@
-# RabbitMQ Streams Protocol — Authentication
+# RabbitMQ Streams Protocol — commands
 
 Extracted from [PROTOCOL.adoc (v4.2.x) — Authentication](https://github.com/rabbitmq/rabbitmq-server/blob/v4.2.x/deps/rabbitmq_stream/docs/PROTOCOL.adoc#authentication). Frame layouts and keys for each command are in [`protocol-commands.md`](protocol-commands.md).
 
@@ -11,3 +11,6 @@ After step_001_protocol-authentication.md
 Implement the following commands:
 - Create stream ( see Create in protocol-commands.md)
 - Delete stream ( see Delete in protocol-commands.md)
+- Store Offset  ( see StoreOffset in protocol-commands.md)
+- QueryOffset   ( see QueryOffset in protocol-commands.md)
+- Query Publisher Sequence ( see QueryPublisherSequence in protocol-commands.md)

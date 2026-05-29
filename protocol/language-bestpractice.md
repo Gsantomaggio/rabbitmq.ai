@@ -32,6 +32,15 @@ interface IStreamClient {
 }
 ```
 
+```go
+interface IClient {
+    ConnectionResult Connect(ConnectionConfig config);
+    StreamResult DeclareStream(StreamSpec spec);
+    DeleteResult DeleteStream(string streamName);
+    NotifyConnectionClosed(ch chan ConnectionStateChanged) chan ConnectionStateChanged
+}
+```
+
 ### Error Handling
 - Define standard error types for network failures, protocol violations, authentication errors
 - Implement graceful degradation and retry mechanisms
@@ -58,5 +67,5 @@ interface IStreamClient {
 
 ### Code Organization
 - each client needs to be in a subdirectoy, example:
-    - Go: go_rabbitmq_client_stream
-    - .NET: net_rabbitmq_client_stream
+    - CPP: cpp_rabbitmq_client_stream
+    <!-- - .NET: net_rabbitmq_client_stream -->

@@ -1,23 +1,52 @@
-BUILD_DIR := build
+# Makefile for the C++ RabbitMQ Stream client.
+# All real work is delegated to CMake under build/.
 
-.PHONY: all build test integration-test format clean
+BUILD_DIR ?= build
+CMAKE     ?= cmake
+CTEST     ?= ctest
+JOBS      ?= 4
+GENERATOR ?=
+
+ifeq ($(GENERATOR),)
+CMAKE_FLAGS :=
+else
+CMAKE_FLAGS := -G $(GENERATOR)
+endif
+
+.PHONY: all configure build test it format clean help
 
 all: build
 
-build:
-	cmake -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=RelWithDebInfo
-	cmake --build $(BUILD_DIR) --parallel
+help:
+	@echo "Targets:"
+	@echo "  build    Configure (if needed) and build the static library + tests."
+	@echo "  test     Build and run the unit-test binary (no broker required)."
+	@echo "  it       Build and run the integration-test binary (broker on localhost:5552)."
+	@echo "  format   Run clang-format -i over include/, src/, tests/."
+	@echo "  clean    Remove the build directory."
+
+configure: $(BUILD_DIR)/CMakeCache.txt
+
+$(BUILD_DIR)/CMakeCache.txt:
+	$(CMAKE) -S . -B $(BUILD_DIR) $(CMAKE_FLAGS)
+
+build: configure
+	$(CMAKE) --build $(BUILD_DIR) -j $(JOBS)
 
 test: build
-	$(BUILD_DIR)/test_unit
+	$(CTEST) --test-dir $(BUILD_DIR) --output-on-failure -R unit_tests
 
-integration-test: build
-	$(BUILD_DIR)/test_integration
+it: build
+	$(CTEST) --test-dir $(BUILD_DIR) --output-on-failure -R integration_tests
 
 format:
-	find src include tests -name '*.cpp' -o -name '*.hpp' | \
-	    xargs clang-format -i --style=file 2>/dev/null || \
-	    xargs clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4}"
+	@if command -v clang-format >/dev/null 2>&1; then \
+		find include src tests -type f \( -name '*.hpp' -o -name '*.cpp' -o -name '*.h' \) \
+			-print0 | xargs -0 clang-format -i; \
+		echo "clang-format applied."; \
+	else \
+		echo "clang-format not found, skipping. Install via 'brew install clang-format' or your package manager."; \
+	fi
 
 clean:
 	rm -rf $(BUILD_DIR)

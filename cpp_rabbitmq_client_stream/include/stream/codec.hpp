@@ -1,157 +1,59 @@
 #pragma once
-#include "errors.hpp"
+
 #include <cstdint>
-#include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
-namespace stream {
+#include "buffer.hpp"
+#include "result.hpp"
 
-// Buffer accumulates big-endian encoded bytes for a frame body.
-class Buffer {
-    std::vector<uint8_t> data_;
+namespace rmqstream::codec {
 
-public:
-    void write_uint8(uint8_t v) { data_.push_back(v); }
+// ---- Big-endian primitive encode -------------------------------------------
 
-    void write_uint16(uint16_t v) {
-        data_.push_back(static_cast<uint8_t>((v >> 8) & 0xFF));
-        data_.push_back(static_cast<uint8_t>(v & 0xFF));
-    }
+void write_u8(BufferWriter& w, std::uint8_t v);
+void write_i8(BufferWriter& w, std::int8_t v);
+void write_u16(BufferWriter& w, std::uint16_t v);
+void write_i16(BufferWriter& w, std::int16_t v);
+void write_u32(BufferWriter& w, std::uint32_t v);
+void write_i32(BufferWriter& w, std::int32_t v);
+void write_u64(BufferWriter& w, std::uint64_t v);
+void write_i64(BufferWriter& w, std::int64_t v);
 
-    void write_uint32(uint32_t v) {
-        data_.push_back(static_cast<uint8_t>((v >> 24) & 0xFF));
-        data_.push_back(static_cast<uint8_t>((v >> 16) & 0xFF));
-        data_.push_back(static_cast<uint8_t>((v >> 8) & 0xFF));
-        data_.push_back(static_cast<uint8_t>(v & 0xFF));
-    }
+// `string` (`int16` length, `-1` = null, max INT16_MAX, UTF-8 payload).
+// `std::nullopt` encodes as the null marker `FF FF`.
+void write_string(BufferWriter& w, const std::optional<std::string>& s);
+// Convenience: encode a non-null string. Same wire format as write_string with engaged optional.
+void write_string(BufferWriter& w, const std::string& s);
 
-    void write_uint64(uint64_t v) {
-        for (int i = 7; i >= 0; --i)
-            data_.push_back(static_cast<uint8_t>((v >> (i * 8)) & 0xFF));
-    }
+// `bytes` (`int32` length, `-1` = null).
+void write_bytes(BufferWriter& w, const std::optional<std::vector<std::uint8_t>>& b);
+void write_bytes_raw(BufferWriter& w, const std::uint8_t* data, std::size_t n);
 
-    void write_int8(int8_t v)   { write_uint8(static_cast<uint8_t>(v)); }
-    void write_int16(int16_t v) { write_uint16(static_cast<uint16_t>(v)); }
-    void write_int32(int32_t v) { write_uint32(static_cast<uint32_t>(v)); }
-    void write_int64(int64_t v) { write_uint64(static_cast<uint64_t>(v)); }
+// `[T]` array prefix (`int32` count). Caller writes the elements after.
+void write_array_prefix(BufferWriter& w, std::int32_t count);
 
-    // String: signed int16 length prefix + UTF-8 bytes.
-    void write_string(const std::string& s) {
-        write_int16(static_cast<int16_t>(s.size()));
-        data_.insert(data_.end(), s.begin(), s.end());
-    }
+// ---- Big-endian primitive decode -------------------------------------------
 
-    // Bytes: signed int32 length prefix + raw bytes.
-    void write_bytes(const std::vector<uint8_t>& b) {
-        write_int32(static_cast<int32_t>(b.size()));
-        data_.insert(data_.end(), b.begin(), b.end());
-    }
+Result<std::uint8_t>  read_u8(BufferReader& r);
+Result<std::int8_t>   read_i8(BufferReader& r);
+Result<std::uint16_t> read_u16(BufferReader& r);
+Result<std::int16_t>  read_i16(BufferReader& r);
+Result<std::uint32_t> read_u32(BufferReader& r);
+Result<std::int32_t>  read_i32(BufferReader& r);
+Result<std::uint64_t> read_u64(BufferReader& r);
+Result<std::int64_t>  read_i64(BufferReader& r);
 
-    // Null bytes: length -1.
-    void write_null_bytes() { write_int32(-1); }
+// Decode a `string` (returns std::nullopt for null marker).
+Result<std::optional<std::string>> read_string(BufferReader& r);
+// Decode a non-null string, error if null marker.
+Result<std::string> read_string_required(BufferReader& r);
 
-    // Map: int32 count + (string key, string value) pairs.
-    void write_string_map(const std::map<std::string, std::string>& m) {
-        write_int32(static_cast<int32_t>(m.size()));
-        for (const auto& [k, v] : m) {
-            write_string(k);
-            write_string(v);
-        }
-    }
+// Decode a `bytes` (std::nullopt for null marker).
+Result<std::optional<std::vector<std::uint8_t>>> read_bytes(BufferReader& r);
 
-    // Slice: int32 count + strings.
-    void write_string_slice(const std::vector<std::string>& ss) {
-        write_int32(static_cast<int32_t>(ss.size()));
-        for (const auto& s : ss) write_string(s);
-    }
+// Decode an array count prefix. Negative values are rejected.
+Result<std::int32_t> read_array_prefix(BufferReader& r);
 
-    const std::vector<uint8_t>& bytes() const { return data_; }
-    size_t size() const { return data_.size(); }
-};
-
-// Reader decodes big-endian values from a frame body byte vector.
-class Reader {
-    const std::vector<uint8_t>& data_;
-    size_t pos_{0};
-
-public:
-    explicit Reader(const std::vector<uint8_t>& data) : data_(data) {}
-
-    size_t pos() const { return pos_; }
-    size_t remaining() const { return data_.size() - pos_; }
-
-    uint8_t read_uint8() {
-        if (pos_ >= data_.size())
-            throw ProtocolError("unexpected end of frame");
-        return data_[pos_++];
-    }
-
-    uint16_t read_uint16() {
-        uint16_t v = static_cast<uint16_t>(read_uint8()) << 8;
-        v |= static_cast<uint16_t>(read_uint8());
-        return v;
-    }
-
-    uint32_t read_uint32() {
-        uint32_t v = static_cast<uint32_t>(read_uint8()) << 24;
-        v |= static_cast<uint32_t>(read_uint8()) << 16;
-        v |= static_cast<uint32_t>(read_uint8()) << 8;
-        v |= static_cast<uint32_t>(read_uint8());
-        return v;
-    }
-
-    uint64_t read_uint64() {
-        uint64_t v = 0;
-        for (int i = 7; i >= 0; --i)
-            v |= static_cast<uint64_t>(read_uint8()) << (i * 8);
-        return v;
-    }
-
-    int8_t  read_int8()  { return static_cast<int8_t>(read_uint8()); }
-    int16_t read_int16() { return static_cast<int16_t>(read_uint16()); }
-    int32_t read_int32() { return static_cast<int32_t>(read_uint32()); }
-    int64_t read_int64() { return static_cast<int64_t>(read_uint64()); }
-
-    std::string read_string() {
-        int16_t length = read_int16();
-        if (length == -1) return "";
-        if (length < 0) throw ProtocolError("invalid string length");
-        std::string s(static_cast<size_t>(length), '\0');
-        for (int16_t i = 0; i < length; ++i)
-            s[static_cast<size_t>(i)] = static_cast<char>(read_uint8());
-        return s;
-    }
-
-    std::vector<uint8_t> read_bytes() {
-        int32_t length = read_int32();
-        if (length == -1) return {};
-        if (length < 0) throw ProtocolError("invalid bytes length");
-        std::vector<uint8_t> b(static_cast<size_t>(length));
-        for (int32_t i = 0; i < length; ++i)
-            b[static_cast<size_t>(i)] = read_uint8();
-        return b;
-    }
-
-    std::map<std::string, std::string> read_string_map() {
-        int32_t count = read_int32();
-        std::map<std::string, std::string> m;
-        for (int32_t i = 0; i < count; ++i) {
-            auto k = read_string();
-            auto v = read_string();
-            m[k] = v;
-        }
-        return m;
-    }
-
-    std::vector<std::string> read_string_slice() {
-        int32_t count = read_int32();
-        std::vector<std::string> ss;
-        ss.reserve(static_cast<size_t>(count));
-        for (int32_t i = 0; i < count; ++i)
-            ss.push_back(read_string());
-        return ss;
-    }
-};
-
-} // namespace stream
+}  // namespace rmqstream::codec

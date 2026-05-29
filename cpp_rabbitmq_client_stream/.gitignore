@@ -1,0 +1,30 @@
+# CMake build directories
+build/
+cmake-build-*/
+
+# IDE / editor
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+
+# Compiled objects and binaries
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.out
+
+# Dependency fetch cache (GoogleTest via FetchContent)
+_deps/
+
+# clangd / compile_commands
+compile_commands.json
+.cache/
+
+# Coverage artefacts
+*.gcno
+*.gcda
+*.gcov
+coverage/
